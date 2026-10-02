@@ -19,10 +19,12 @@
 - **Enabled**: `true`
 - **Protocol**: `openid-connect`
 - **Public Client**: `true`
-- **Standard Flow Enabled**: `true`
+- **Standard Flow Enabled**: `true` (Enables OIDC Authorization Code Flow with PKCE)
 - **Direct Access Grants Enabled**: `true` (Enables Resource Owner Password Flow for demo & testing scripts)
 - **Redirect URIs**: `["http://localhost:5000/*"]`
-- **Web Origins**: `["+"]`
+- **Post Logout Redirect URIs**: `["http://localhost:5000/*"]`
+- **Web Origins**: `["http://localhost:5000"]`
+- **Attributes**: `pkce.code.challenge.method: "S256"` (Enforces S256 PKCE method)
 - **Protocol Mappers**:
   - **Mapper Name**: `oidc-audience-mapper`
   - **Mapper Type**: `oidc-audience-mapper`
@@ -39,87 +41,78 @@ All users have `emailVerified: true` and non-temporary credentials (preventing K
 
 ---
 
-## 2. API Design & Endpoints
+## 2. API & UI Endpoint Specification
 
-### Endpoint Specification
+### Static & UI Endpoints
+
+#### 1. Browser Demo Page
+- **Route**: `GET /`
+- **Auth**: None (Public)
+- **Headers**: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:8080; frame-ancestors 'none'`
+- **Response**: Serves `static/index.html` with Vanilla JS OIDC PKCE client logic.
+
+#### 2. Static Assets
+- **Route**: `GET /static/<filename>`
+- **Auth**: None (Public)
+- **Response**: Serves requested CSS/JS static files from `static/` directory.
+
+#### 3. Frontend Keycloak Configuration
+- **Route**: `GET /config.json`
+- **Auth**: None (Public)
+- **Response (200 OK)**:
+```json
+{
+  "keycloakUrl": "http://localhost:8080",
+  "realm": "company",
+  "clientId": "company-app"
+}
+```
+
+### Protected & Public API Endpoints
 
 #### 1. Public Health Check
 - **Route**: `GET /health`
 - **Auth**: None (Public)
-- **Response (200 OK)**:
-```json
-{
-  "status": "healthy",
-  "service": "iam-rbac-api",
-  "version": "1.0.0"
-}
-```
+- **Response (200 OK)**: `{"status": "healthy", "service": "iam-rbac-api", "version": "1.0.0"}`
 
 #### 2. Public System Info
 - **Route**: `GET /api/public`
 - **Auth**: None (Public)
-- **Response (200 OK)**:
-```json
-{
-  "message": "Welcome to the IAM & RBAC Public API",
-  "auth_required": false
-}
-```
+- **Response (200 OK)**: `{"message": "Welcome to the IAM & RBAC Public API", "auth_required": false}`
 
-#### 3. User Profile
+#### 3. User Profile Endpoint
 - **Route**: `GET /api/profile`
-- **Auth**: Required (`admin`, `manager`, or `employee`)
-- **Response (200 OK)**:
-```json
-{
-  "username": "alice",
-  "email": "alice@company.com",
-  "name": "Alice Admin",
-  "roles": ["admin", "employee"]
-}
-```
+- **Auth**: Bearer JWT (`admin`, `manager`, `employee`)
+- **Response (200 OK)**: User profile JSON extracted from JWT claims.
 
-#### 4. Management Reports
+#### 4. Management Reports Endpoint
 - **Route**: `GET /api/reports`
-- **Auth**: Required (`admin` or `manager`)
-- **Response (200 OK)**:
-```json
-{
-  "reports": [
-    {"id": "REP-101", "title": "Q3 Access Audit Report", "classification": "CONFIDENTIAL"},
-    {"id": "REP-102", "title": "Role Usage Analytics", "classification": "INTERNAL"}
-  ],
-  "accessed_by": "bob",
-  "role_used": "manager"
-}
-```
+- **Auth**: Bearer JWT (`admin`, `manager`)
+- **Response (200 OK / 403 Forbidden)**: Management reports list.
 
-#### 5. Administrative User Directory
+#### 5. Admin Users Directory
 - **Route**: `GET /api/admin/users`
-- **Auth**: Required (`admin` only)
-- **Response (200 OK)**:
-```json
-{
-  "users": [
-    {"username": "alice", "email": "alice@company.com", "role": "admin"},
-    {"username": "bob", "email": "bob@company.com", "role": "manager"},
-    {"username": "charlie", "email": "charlie@company.com", "role": "employee"}
-  ],
-  "total": 3
-}
-```
+- **Auth**: Bearer JWT (`admin`)
+- **Response (200 OK / 403 Forbidden)**: System users directory.
 
 ---
 
-## 3. Standard JSON Error Schema
+## 3. UI Browser Demo Architecture (`static/`)
 
-All error responses return `Content-Type: application/json` with the format:
-```json
-{
-  "error": "error_code_identifier",
-  "message": "Human-readable explanation of error"
-}
-```
+- **`index.html`**: Clean 900px max-width layout with responsive design, dynamic cards, user card, 1-sec token countdown, interactive endpoint test section, and security test panel.
+- **`style.css`**: Design system with CSS variables, light/dark mode auto-switching (`prefers-color-scheme`), accessible button focus states, and status badges.
+- **`app.js`**: Vanilla JS OIDC client implementing:
+  - PKCE code generation via Web Crypto API (`window.crypto.subtle.digest('SHA-256')`).
+  - OAuth state verification and ID token nonce validation.
+  - Live 1-second countdown timer updating session remaining time.
+  - Endpoint testing with `✓ as expected` or `⚠ expected <status>` badges.
+  - Security attack simulation panel (expired token, tampered signature, role removal).
+  - Strict DOM safety using `textContent` for all dynamic data injection (0 `innerHTML` calls).
+  - Token storage trade-off notice in comments regarding `sessionStorage`.
+
+---
+
+## 4. Error Handling & HTTP Status Codes
 
 | HTTP Status | Error Code (`error`) | Cause |
 | :--- | :--- | :--- |
@@ -134,19 +127,24 @@ All error responses return `Content-Type: application/json` with the format:
 
 ---
 
-## 4. Code Layout
+## 5. Code Layout
 
 ```
 iam-rbac-app/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py        # Flask application factory, routes, and error handlers
+│   ├── main.py        # Flask application factory, routes, static file serving, CSP headers
 │   ├── auth.py        # JWT verification decorator, JWKS key client, role checks
 │   └── config.py      # Environment variable configuration loading
+├── static/
+│   ├── index.html     # Vanilla HTML5 Browser Demo Page
+│   ├── style.css      # Design system CSS with dark mode support
+│   └── app.js         # Vanilla JS PKCE OIDC client & security test panel
 ├── keycloak/
-│   └── realm-company.json # Exported realm configuration JSON
+│   └── realm-company.json # Keycloak 26 auto-import realm config with PKCE S256 enabled
 ├── tests/
 │   ├── test_unit.py        # Offline unit tests using local RSA keys
+│   ├── test_ui.py          # UI static route & CSP security header tests
 │   └── test_integration.py # Live integration tests against Keycloak stack
 ├── scripts/
 │   ├── demo.py        # 11-scenario automated verification script
@@ -160,23 +158,3 @@ iam-rbac-app/
 ├── .gitignore         # Git ignore rules
 └── README.md          # Primary project overview & documentation
 ```
-
----
-
-## 5. Demo Script Design (`scripts/demo.py`)
-
-The automated demo script executes 11 distinct test scenarios using real OIDC password grant tokens against the live stack:
-
-1. `GET /health` (Public -> 200 OK)
-2. `GET /api/public` (Public -> 200 OK)
-3. `GET /api/profile` as **Alice (Admin)** -> 200 OK
-4. `GET /api/profile` as **Bob (Manager)** -> 200 OK
-5. `GET /api/profile` as **Charlie (Employee)** -> 200 OK
-6. `GET /api/reports` as **Alice (Admin)** -> 200 OK
-7. `GET /api/reports` as **Bob (Manager)** -> 200 OK
-8. `GET /api/reports` as **Charlie (Employee)** -> **403 Forbidden**
-9. `GET /api/admin/users` as **Alice (Admin)** -> 200 OK
-10. `GET /api/admin/users` as **Bob (Manager)** -> **403 Forbidden**
-11. `GET /api/admin/users` as **Charlie (Employee)** -> **403 Forbidden**
-
-Outputs a clean ANSI-colored table summarizing status codes and PASS/FAIL metrics, exiting with code 0 if 11/11 scenarios pass.

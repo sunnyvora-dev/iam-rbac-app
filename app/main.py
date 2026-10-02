@@ -1,8 +1,10 @@
-"""Flask REST API entry point exposing public, profile, management, and administrative endpoints."""
+"""Flask REST API entry point exposing public, profile, management, administrative, and static demo endpoints."""
 
+import os
 import logging
-from flask import Flask, jsonify, g
+from flask import Flask, jsonify, g, send_from_directory, make_response
 from app.auth import require_roles, ADMIN, MANAGER, EMPLOYEE
+from app.config import config
 
 # Configure structured application logging
 logging.basicConfig(
@@ -13,9 +15,43 @@ logger = logging.getLogger("iam-rbac-api")
 
 def create_app() -> Flask:
     """Application factory for constructing and configuring the Flask API instance."""
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="../static")
 
-    # --- PUBLIC ENDPOINTS ---
+    # --- BROWSER DEMO & STATIC ENDPOINTS ---
+
+    @app.route("/", methods=["GET"])
+    def serve_index():
+        """Serves static/index.html browser demo page with security headers."""
+        response = make_response(send_from_directory(os.path.join(app.root_path, "../static"), "index.html"))
+        
+        # Security Headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        csp = (
+            f"default-src 'self'; "
+            f"script-src 'self'; "
+            f"style-src 'self'; "
+            f"img-src 'self' data:; "
+            f"connect-src 'self' {config.KEYCLOAK_PUBLIC_URL}; "
+            f"frame-ancestors 'none'"
+        )
+        response.headers["Content-Security-Policy"] = csp
+        return response
+
+    @app.route("/static/<path:filename>", methods=["GET"])
+    def serve_static(filename):
+        """Serves static assets (CSS, JS)."""
+        return send_from_directory(os.path.join(app.root_path, "../static"), filename)
+
+    @app.route("/config.json", methods=["GET"])
+    def get_frontend_config():
+        """Returns non-sensitive Keycloak public configuration parameters for frontend PKCE initialization."""
+        return jsonify({
+            "keycloakUrl": config.KEYCLOAK_PUBLIC_URL,
+            "realm": config.REALM,
+            "clientId": config.CLIENT_ID
+        }), 200
+
+    # --- PUBLIC API ENDPOINTS ---
 
     @app.route("/health", methods=["GET"])
     def health():

@@ -24,8 +24,9 @@ ENV PYTHONUNBUFFERED=1
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application source code
+# Copy application source code and static demo files
 COPY app ./app
+COPY static ./static
 
 # Create unprivileged system user for container execution
 RUN useradd -u 10001 -m -s /bin/bash appuser && \

@@ -41,7 +41,7 @@ def fetch_token(username: str, password: str) -> str:
 
 def main():
     print(f"\n{BOLD}{CYAN}========================================================================={RESET}")
-    print(f"{BOLD}{CYAN}      IAM & RBAC APPLICATION — 11-SCENARIO VERIFICATION SUITE           {RESET}")
+    print(f"{BOLD}{CYAN}      IAM & RBAC APPLICATION -- 11-SCENARIO VERIFICATION SUITE           {RESET}")
     print(f"{BOLD}{CYAN}========================================================================={RESET}\n")
 
     # 1. Fetch Tokens for Demo Users
@@ -54,9 +54,9 @@ def main():
 
     for user, token in tokens.items():
         if token:
-            print(f"  [{GREEN}✓{RESET}] User {BOLD}{user.capitalize()}{RESET}: Token acquired ({token[:25]}...)")
+            print(f"  [{GREEN}OK{RESET}] User {BOLD}{user.capitalize()}{RESET}: Token acquired ({token[:25]}...)")
         else:
-            print(f"  [{RED}✗{RESET}] User {BOLD}{user.capitalize()}{RESET}: Failed to acquire token.")
+            print(f"  [{RED}FAIL{RESET}] User {BOLD}{user.capitalize()}{RESET}: Failed to acquire token.")
             sys.exit(1)
 
     # 2. Define 11 Test Scenarios

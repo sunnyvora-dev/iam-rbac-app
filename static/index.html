@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IAM & RBAC Browser Demo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header with Technology Chips -->
+    <header class="app-header">
+      <div class="header-title">
+        <h1>IAM & RBAC Demo</h1>
+        <p class="subtitle">OIDC Authorization Code Flow with PKCE S256 & RS256 JWT Verification</p>
+      </div>
+      <div class="tech-chips">
+        <span class="chip">Keycloak 26</span>
+        <span class="chip">OIDC</span>
+        <span class="chip">OAuth 2.0</span>
+        <span class="chip">JWT (RS256)</span>
+        <span class="chip">Flask</span>
+        <span class="chip">Docker</span>
+      </div>
+    </header>
+
+    <!-- Error Banner for Login / PKCE Errors -->
+    <div id="error-banner" class="alert alert-danger hidden">
+      <strong id="error-title">Error</strong>
+      <span id="error-message">An error occurred during authentication.</span>
+    </div>
+
+    <!-- LOGGED-OUT VIEW -->
+    <section id="logged-out-view" class="card main-card">
+      <div class="auth-box">
+        <h2>Interactive Access Control Demo</h2>
+        <p>Authenticate via Keycloak to test Role-Based Access Control (RBAC) across endpoints.</p>
+        
+        <button id="login-btn" class="btn btn-primary btn-large">
+          Login with Keycloak
+        </button>
+
+        <!-- Collapsible Demo Users Table -->
+        <details class="demo-users-details">
+          <summary class="demo-users-summary">Demo Users & Credentials</summary>
+          <div class="demo-users-table-wrapper">
+            <table class="demo-users-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Password</th>
+                  <th>Assigned Role</th>
+                  <th>Access Rights</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>alice</code></td>
+                  <td><code>Alice@123</code></td>
+                  <td><span class="badge badge-admin">admin</span></td>
+                  <td>Profile, Reports, Admin Users</td>
+                </tr>
+                <tr>
+                  <td><code>bob</code></td>
+                  <td><code>Bob@123</code></td>
+                  <td><span class="badge badge-manager">manager</span></td>
+                  <td>Profile, Reports</td>
+                </tr>
+                <tr>
+                  <td><code>charlie</code></td>
+                  <td><code>Charlie@123</code></td>
+                  <td><span class="badge badge-employee">employee</span></td>
+                  <td>Profile Only</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- LOGGED-IN VIEW -->
+    <main id="logged-in-view" class="hidden">
+      <!-- User Information Card -->
+      <section class="card user-card">
+        <div class="user-card-header">
+          <div class="user-info">
+            <h2 id="user-name">Loading User...</h2>
+            <div class="user-meta">
+              <span id="user-username">@username</span> &bull; <span id="user-email">email@company.com</span>
+            </div>
+            <div id="user-roles" class="user-roles-container">
+              <!-- Dynamic Badges Inserted Here -->
+            </div>
+          </div>
+          <div class="user-actions">
+            <button id="logout-btn" class="btn btn-secondary">Logout</button>
+          </div>
+        </div>
+
+        <div class="security-note">
+          <small>&bull; Claims are decoded for display only. The API verifies the RS256 signature on every call.</small>
+        </div>
+
+        <!-- Live Token Expiration Countdown -->
+        <div class="countdown-bar">
+          <div id="token-countdown" class="countdown-timer">Token expires in 5:00</div>
+          <div id="expiry-alert" class="alert alert-danger alert-inline hidden">
+            Session expired: API calls now return 401
+          </div>
+        </div>
+      </section>
+
+      <!-- Endpoint Interrogation Panel -->
+      <section class="section">
+        <h2>API Endpoint Access Testing</h2>
+        <p class="section-desc">Test how the API handles requests based on your current Keycloak realm roles.</p>
+        
+        <div class="grid grid-2">
+          <!-- Public Info Card -->
+          <div class="card endpoint-card" data-endpoint="/api/public">
+            <div class="card-header">
+              <span class="method-tag">GET</span>
+              <code class="endpoint-path">/api/public</code>
+            </div>
+            <div class="allowed-roles">Allowed: <em>Public (Everyone)</em></div>
+            <div class="card-actions">
+              <button class="btn btn-sm call-endpoint-btn" data-url="/api/public">Call Endpoint</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 200 OK</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <div class="response-time">Time: -</div>
+              <pre class="response-json">Click 'Call Endpoint' to test</pre>
+            </div>
+          </div>
+
+          <!-- User Profile Card -->
+          <div class="card endpoint-card" data-endpoint="/api/profile">
+            <div class="card-header">
+              <span class="method-tag">GET</span>
+              <code class="endpoint-path">/api/profile</code>
+            </div>
+            <div class="allowed-roles">Allowed: <code>admin</code>, <code>manager</code>, <code>employee</code></div>
+            <div class="card-actions">
+              <button class="btn btn-sm call-endpoint-btn" data-url="/api/profile">Call Endpoint</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 200 for all users</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <div class="response-time">Time: -</div>
+              <pre class="response-json">Click 'Call Endpoint' to test</pre>
+            </div>
+          </div>
+
+          <!-- Reports Card -->
+          <div class="card endpoint-card" data-endpoint="/api/reports">
+            <div class="card-header">
+              <span class="method-tag">GET</span>
+              <code class="endpoint-path">/api/reports</code>
+            </div>
+            <div class="allowed-roles">Allowed: <code>admin</code>, <code>manager</code></div>
+            <div class="card-actions">
+              <button class="btn btn-sm call-endpoint-btn" data-url="/api/reports">Call Endpoint</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 200 (admin/manager), 403 (employee)</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <div class="response-time">Time: -</div>
+              <pre class="response-json">Click 'Call Endpoint' to test</pre>
+            </div>
+          </div>
+
+          <!-- Admin Users Card -->
+          <div class="card endpoint-card" data-endpoint="/api/admin/users">
+            <div class="card-header">
+              <span class="method-tag">GET</span>
+              <code class="endpoint-path">/api/admin/users</code>
+            </div>
+            <div class="allowed-roles">Allowed: <code>admin</code> only</div>
+            <div class="card-actions">
+              <button class="btn btn-sm call-endpoint-btn" data-url="/api/admin/users">Call Endpoint</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 200 (admin), 403 (otherwise)</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <div class="response-time">Time: -</div>
+              <pre class="response-json">Click 'Call Endpoint' to test</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security Attack Tests Panel -->
+      <section class="section">
+        <h2>Security Attack & Failure Testing Panel</h2>
+        <p class="section-desc">Verify that the API rejects invalid, missing, and tampered bearer tokens with HTTP 401.</p>
+        
+        <div class="grid grid-3">
+          <!-- No Token Card -->
+          <div class="card sec-test-card" data-sec="no-token">
+            <h3>a) Missing Token</h3>
+            <p class="sec-desc">Calls <code>GET /api/profile</code> with no Authorization header.</p>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-outline sec-test-btn" data-type="no-token">Test No Token</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 401 missing_token</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <pre class="response-json">Click button to test</pre>
+            </div>
+          </div>
+
+          <!-- Fake Token Card -->
+          <div class="card sec-test-card" data-sec="fake-token">
+            <h3>b) Fake Token</h3>
+            <p class="sec-desc">Calls <code>GET /api/profile</code> with header <code>Bearer abc.def.ghi</code>.</p>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-outline sec-test-btn" data-type="fake-token">Test Fake Token</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 401 invalid_token</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <pre class="response-json">Click button to test</pre>
+            </div>
+          </div>
+
+          <!-- Tampered Token Card -->
+          <div class="card sec-test-card" data-sec="tampered-token">
+            <h3>c) Tampered Signature</h3>
+            <p class="sec-desc">Calls <code>GET /api/admin/users</code> with signature modified to <code>...AAAA</code>.</p>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-outline sec-test-btn" data-type="tampered-token">Test Tampered Token</button>
+              <span class="status-badge badge-grey">Idle</span>
+            </div>
+            <div class="expectation-row">
+              <span class="expectation-text">Expected: 401 invalid_token</span>
+              <span class="expectation-result"></span>
+            </div>
+            <div class="response-wrapper">
+              <pre class="response-json">Click button to test</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

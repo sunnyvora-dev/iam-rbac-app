@@ -8,8 +8,8 @@ class Config:
     # Public Keycloak URL used for JWT issuer validation (e.g. http://localhost:8080)
     KEYCLOAK_PUBLIC_URL: str = os.getenv("KEYCLOAK_PUBLIC_URL", "http://localhost:8080").rstrip("/")
     
-    # Internal Keycloak URL used by backend containers to fetch JWKS keys (e.g. http://keycloak:8080)
-    KEYCLOAK_INTERNAL_URL: str = os.getenv("KEYCLOAK_INTERNAL_URL", "http://keycloak:8080").rstrip("/")
+    # Internal Keycloak URL used by backend containers to fetch JWKS keys (e.g. http://localhost:8080)
+    KEYCLOAK_INTERNAL_URL: str = os.getenv("KEYCLOAK_INTERNAL_URL", "http://localhost:8080").rstrip("/")
     
     # Target Realm name
     REALM: str = os.getenv("REALM", "company")

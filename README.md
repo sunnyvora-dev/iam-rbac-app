@@ -1,39 +1,64 @@
 # IAM & RBAC Application — Keycloak OIDC & Flask REST API
 
-A portfolio-grade **Identity and Access Management (IAM)** and **Role-Based Access Control (RBAC)** architecture demonstrating enterprise security best practices. The system decouples identity management to a Keycloak 26 OpenID Connect (OIDC) server and enforces asymmetric RS256 JWT signature verification and role-based authorization inside a Python 3.12 Flask REST API.
+A portfolio-grade **Identity and Access Management (IAM)** and **Role-Based Access Control (RBAC)** architecture demonstrating enterprise security best practices. The system decouples identity management to a Keycloak 26 OpenID Connect (OIDC) server, features a **vanilla JavaScript browser demo page with OIDC PKCE S256 authentication**, and enforces asymmetric RS256 JWT signature verification and role-based authorization inside a Python 3.12 Flask REST API.
 
 ![Keycloak 26](https://img.shields.io/badge/Keycloak-26.0.0-blue?logo=keycloak)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.0.0-000000?logo=flask)
+![OIDC PKCE](https://img.shields.io/badge/OIDC-PKCE%20S256-green?logo=openid)
 ![Docker Compose](https://img.shields.io/badge/Docker%20Compose-v3.8-2496ED?logo=docker)
 ![Pytest](https://img.shields.io/badge/Pytest-100%25%20Pass-0A9EDC?logo=pytest)
 ![RS256 JWT](https://img.shields.io/badge/JWT-RS256%20Asymmetric-000000?logo=jsonwebtokens)
 
 ---
 
+## 🌐 Browser Demo Interface (http://localhost:5000)
+
+The application includes an interactive browser demo interface at **`http://localhost:5000`** designed for HR and technical reviewers to test the complete identity lifecycle:
+
+- 🔐 **OIDC Authorization Code Flow + PKCE (S256)**: Secure client-side authentication without client secrets using Web Crypto API.
+- ⏱️ **Live Session Countdown Timer**: Visual 1-second countdown showing token expiration with automatic UI state reset on expiration.
+- 🎯 **Interactive RBAC Endpoint Testing**: One-click API invocation (`/api/public`, `/api/profile`, `/api/reports`, `/api/admin/users`) with expected status badges.
+- 🛡️ **Built-in Security Attack Test Suite**:
+  1. **Expired Token Test**: Sends an expired token to demonstrate 401 Unauthorized handling.
+  2. **Tampered Signature Test**: Modifies token signature bytes to test RS256 signature verification rejection.
+  3. **Privilege Escalation Test**: Strips administrative roles from token payload to verify backend RBAC enforcement.
+- 🔒 **Zero Token Console Logging**: Strictly zero token values exposed in browser developer tools or console.
+- 🛡️ **Security Headers**: Served with `X-Content-Type-Options: nosniff` and strict `Content-Security-Policy`.
+
+---
+
 ## 📐 Architecture & Authentication Flow
 
 ```
-+---------------+                    +------------------+                   +--------------------+
-| Client / User |                    | Keycloak IdP 26  |                   |  Flask REST API    |
-+-------+-------+                    +--------+---------+                   +---------+----------+
-        |                                     |                                       |
-        | 1. POST /token (User/Pass)          |                                       |
-        +------------------------------------>|                                       |
-        | 2. Returns RS256 Signed Access Token|                                       |
-        |<------------------------------------+                                       |
-        |                                                                             |
-        | 3. GET /api/reports (Header: Bearer <JWT>)                                  |
-        +---------------------------------------------------------------------------->|
-        |                                                                             |
-        |                               4. GET /certs (Fetch JWKS Public Key)         |
-        |                               +-------------------------------------------->|
-        |                               |<--------------------------------------------+
-        |                                                                             |
-        |                               5. Verify RS256 Signature & Claims (iss, aud) |
-        |                               6. Check RBAC Role in realm_access.roles       |
-        | 7. Returns JSON Data (200 OK / 403 Forbidden)                               |
-        |<----------------------------------------------------------------------------+
++------------------+                    +------------------+                   +--------------------+
+|  Browser Client  |                    | Keycloak IdP 26  |                   |  Flask REST API    |
+| (http://localhost|                    | (http://localhost|                   | (http://localhost  |
+|      :5000)      |                    |      :8080)      |                   |      :5000)        |
++--------+---------+                    +--------+---------+                   +---------+----------+
+         |                                       |                                       |
+         | 1. Redirect to /auth (PKCE S256)      |                                       |
+         +-------------------------------------->|                                       |
+         | 2. User Authenticates & Consents      |                                       |
+         | 3. Redirect back with ?code=          |                                       |
+         |<--------------------------------------+                                       |
+         |                                       |                                       |
+         | 4. POST /token (code + code_verifier) |                                       |
+         +-------------------------------------->|                                       |
+         | 5. Returns access_token & id_token    |                                       |
+         |<--------------------------------------+                                       |
+         |                                                                               |
+         | 6. GET /api/reports (Header: Bearer <JWT>)                                    |
+         +------------------------------------------------------------------------------>|
+         |                                                                               |
+         |                                 7. GET /certs (Fetch JWKS Public Key)         |
+         |                                 +-------------------------------------------->|
+         |                                 |<--------------------------------------------+
+         |                                                                               |
+         |                                 8. Verify RS256 Signature & Claims (iss, aud) |
+         |                                 9. Check RBAC Role in realm_access.roles       |
+         | 10. Returns JSON Data (200 OK / 403 Forbidden)                                |
+         |<------------------------------------------------------------------------------+
 ```
 
 ---
@@ -53,14 +78,13 @@ A portfolio-grade **Identity and Access Management (IAM)** and **Role-Based Acce
 ## 🚀 Quick Start (3 Commands)
 
 ```bash
-# 1. Start the Keycloak and Flask API containers
+# 1. Start Keycloak and Flask API containers
 docker compose up -d --build
 
-# 2. Wait 20 seconds for Keycloak to initialize, then run the 11-scenario automated verification suite
-python scripts/demo.py
+# 2. Run the 100% offline Pytest test suite (unit + UI tests)
+pytest tests/test_unit.py tests/test_ui.py -v
 
-# 3. Run the 100% offline Pytest unit test suite
-pytest tests/test_unit.py -v
+# 3. Open http://localhost:5000 in your browser to experience the demo!
 ```
 
 ---
@@ -79,7 +103,7 @@ The Keycloak realm (`realm-company.json`) comes auto-imported with 3 pre-configu
 
 ## 💻 Manual `curl` Usage Examples
 
-### 1. Obtain Access Token via Keycloak OIDC Password Grant
+### 1. Obtain Access Token via Keycloak OIDC Password Grant (Testing CLI)
 ```bash
 # Get access token for Alice (Admin)
 TOKEN=$(curl -s -X POST "http://localhost:8080/realms/company/protocol/openid-connect/token" \
@@ -113,22 +137,24 @@ curl -i -H "Authorization: Bearer $CHARLIE_TOKEN" http://localhost:5000/api/admi
 
 ## 🛡️ Security Audit Checklist & Controls
 
-- [x] **Asymmetric Signature Verification (RS256 Only)**: Unsecure algorithms (`HS256`, `none`) are rejected.
+- [x] **OIDC Authorization Code Flow + PKCE (S256)**: Front-end uses SHA-256 code challenge for public client security.
+- [x] **Asymmetric Signature Verification (RS256 Only)**: Unsecure algorithms (`HS256`, `none`) strictly rejected.
 - [x] **Dynamic Public Key Retrieval**: Public keys fetched from Keycloak JWKS (`/protocol/openid-connect/certs`) via cached `PyJWKClient`.
-- [x] **Strict Claim Validation**: Mandatory validation of `exp` (expiration), `iat` (issued at), `iss` (issuer), and `aud` (`company-app`).
+- [x] **Strict Claim Validation**: Mandatory validation of `exp` (expiration), `iat` (issued at), `iss` (issuer), `aud` (`company-app`), and `nonce`.
 - [x] **Decoupled Auth & Role Check**: Decorator `@require_roles(*roles)` parses `realm_access.roles` claim.
+- [x] **DOM Security (Strict textContent)**: UI code uses exclusively `textContent` to eliminate XSS vulnerabilities.
 - [x] **Non-Root Container Hardening**: Docker container runs as unprivileged `appuser` (UID 10001).
 - [x] **Zero Token Leak Logging**: Application logs user identities and role lists, never raw JWT tokens or secrets.
-- [x] **Standard Error Payloads**: Structured JSON error formatting (`{"error": "...", "message": "..."}`).
+- [x] **Security Headers**: Served with `X-Content-Type-Options: nosniff` and `Content-Security-Policy`.
 
 ---
 
-## 🧪 Testing Suite & Manual Token Expiration Verification
+## 🧪 Testing Suite & Verification
 
-### 1. Offline Unit Tests
-Run 100% offline unit tests (generates throwaway local RSA key pairs, no Keycloak server needed):
+### 1. Offline Unit & UI Tests
+Run 100% offline unit and UI tests:
 ```bash
-pytest tests/test_unit.py -v
+pytest tests/test_unit.py tests/test_ui.py -v
 ```
 
 ### 2. Live Integration Tests
@@ -136,15 +162,6 @@ Run integration tests against running Keycloak & API stack:
 ```bash
 pytest tests/test_integration.py -v
 ```
-
-### 3. Manual Expired-Token Verification Test
-To manually test expired token rejection (`401 token_expired`):
-1. In `keycloak/realm-company.json`, temporarily edit `"accessTokenLifespan": 5`.
-2. Re-import realm: `docker compose down -v && docker compose up -d --build`.
-3. Fetch a token for `alice`: `TOKEN=$(bash scripts/get_token.sh alice Alice@123)`.
-4. Wait 10 seconds.
-5. Execute request: `curl -i -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/profile`.
-6. **Expected Output**: HTTP 401 Unauthorized `{"error": "token_expired", "message": "Token has expired"}`.
 
 ---
 
@@ -157,10 +174,15 @@ iam-rbac-app/
 │   ├── config.py         # Keycloak URLs, Realm, Client ID config
 │   ├── auth.py           # RS256 JWT verification decorator & JWKS client
 │   └── main.py           # Flask REST API routes & JSON error handlers
+├── static/
+│   ├── index.html        # Vanilla HTML5 Browser Demo Page
+│   ├── style.css         # Modern CSS design system & dark theme
+│   └── app.js            # PKCE S256 OIDC client & security test panel
 ├── keycloak/
-│   └── realm-company.json # Keycloak 26 auto-import realm config
+│   └── realm-company.json # Keycloak 26 auto-import realm config (PKCE enabled)
 ├── tests/
 │   ├── test_unit.py       # 100% offline Pytest unit test suite
+│   ├── test_ui.py         # UI static route & CSP security header tests
 │   └── test_integration.py# Live integration test suite
 ├── scripts/
 │   ├── demo.py           # 11-scenario automated verification script
@@ -180,13 +202,6 @@ iam-rbac-app/
 ├── .gitignore            # Git ignore rules
 └── README.md             # Primary project documentation
 ```
-
----
-
-## ⚠️ Security Notice: Password Grant vs. Production Auth Code + PKCE
-
-> [!NOTE]
-> Resource Owner Password Credentials Grant (`grant_type=password`) used in `scripts/demo.py` and `scripts/get_token.sh` is enabled for **local automated testing and CLI demonstration purposes only**. Production frontend and mobile applications MUST use OpenID Connect **Authorization Code Flow with PKCE (Proof Key for Code Exchange)** where users authenticate directly on Keycloak's hosted login page without exposing credentials to application code.
 
 ---
 
