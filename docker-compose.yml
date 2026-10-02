@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.0
+    container_name: keycloak-idp
+    command: start-dev --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin123
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-company.json:/opt/keycloak/data/import/realm-company.json:ro
+      - keycloak_data:/opt/keycloak/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /realms/company HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iam-rbac-api
+    ports:
+      - "5000:5000"
+    environment:
+      - KEYCLOAK_PUBLIC_URL=http://localhost:8080
+      - KEYCLOAK_INTERNAL_URL=http://keycloak:8080
+      - REALM=company
+      - CLIENT_ID=company-app
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  keycloak_data:
